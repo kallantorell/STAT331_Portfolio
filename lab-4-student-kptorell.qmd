@@ -1,0 +1,279 @@
+---
+title: "Lab 4: Childcare Costs in California"
+author: "Kallan Paul Torell"
+format: html
+editor: source
+embed-resources: true
+execute:
+  code-tools: true
+  code-fold: true
+  echo: true
+  eval: true
+---
+
+# Part One: Set-up
+
+In this lab, we will be using the **tidyr** and **forcats** packages to explore
+the cost of childcare across the US. **You are expected to use functions from tidyr and forcats to do your data manipulation!**
+
+<!-- See instructions for words of advice on completing the assignment! -->
+
+# Exploring Childcare Costs
+
+## The Data
+
+In this lab we're going look at the median weekly cost of childcare in California. The data come to us from [TidyTuesday](https://github.com/rfordatascience/tidytuesday). A detailed description of the data can be found [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2023/2023-05-09/readme.md). **You will need to use this data dictionary to complete the lab!**
+
+We also have information from the California State Controller on tax revenue for california counties from 2005 - 2018. I compiled the data from [this website](https://counties.bythenumbers.sco.ca.gov/#!/year/default) for you. Note that there is no data for San Franscisco County. The variables included in the `ca_tax_revenue.csv` data file (loaded below) include:
+
+- `entity_name`: County name
+- `year`: fiscal year
+- `total_property_taxes`: total revenue in $ from property taxes
+- `sales_and_use_taxes`: total revenue in $ from sales and use taxes
+
+**0. Load the appropriate libraries and the data.**
+
+```{r}
+#| label: packages
+library(tidyr)
+library(forcats)
+library(readr)
+library(dplyr)
+library(stringr)
+```
+
+```{r}
+#| label: load-data
+
+childcare_costs <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/childcare_costs.csv')
+
+counties <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-05-09/counties.csv')
+
+tax_rev <- read_csv('https://atheobold.github.io/groupworthy-data-science/labs/instructions/data/ca_tax_revenue.csv')
+
+head(childcare_costs)
+```
+
+**1. Briefly describe the `childcare_costs` dataset (~ 4 sentences). What information does it contain?**
+```{r}
+??childcare_costs
+```
+  The childcare_costs dataset contains a comprehensive set of data that first designates a county code, or a multi-digit code to identify which state the county the observation comes from, with the 4 or five digit code designating state, and county. The dataset then has columns with data on the study year of each child, and then buckets containing the unemployment rates and labor force participation rates of certain age ranges (20-64), with columns for males and females in that range. The rest of the dataset has various factors present, such as population totals, the percent of each race that makes up the populations, nuclear or non-nuclear family dynamics, whether both parents work, types of work, and the price of schools through aggregated price data. 
+
+## California Childcare Costs
+
+**2. Let's start by focusing only on California. Create a `ca_childcare` dataset of childcare costs in California, containing (1) county information and (2) all information from the `childcare_costs` dataset. You should do all of this within one pipeline.** 
+
+```{r}
+#| label: ca-childcare-costs
+
+ca_childcare <- counties |>
+  mutate(county_fips_code = coalesce(county_fips_code, county_fips_code)) |>
+  filter(state_abbreviation == "CA" | state_name == "California") |>
+  select(state_name, state_abbreviation, county_name, county_fips_code) |>           
+  inner_join(childcare_costs |>                                    
+               mutate(county_fips = coalesce(county_fips_code, county_fips_code)),
+             by = "county_fips_code")
+  
+ca_childcare 
+```
+
+<!-- Checkpoint: There are 58 counties in CA and 11 years in the dataset. Therefore, your new dataset should have 53 x 11 = 638 observations. -->
+
+**3. Now, lets add the tax revenue information to the `ca_childcare` dataset. Add the data from `tax_rev` for the counties and years that are already in the `ca_childcare` data. Overwrite the old `ca_childcare` data with this dataset.**
+
+```{r}
+#| label: add-tax-information
+ca_childcare <- counties |>
+  filter(state_abbreviation == "CA") |>
+  select(state_name, state_abbreviation, county_name, county_fips_code) |>
+  inner_join(childcare_costs, by = "county_fips_code") |>
+  left_join(
+    tax_rev |>
+      rename(county_name = entity_name) |>
+      select(county_name, year, total_property_taxes, sales_and_use_taxes),
+    by = c("county_name" = "county_name", "study_year" = "year")
+  )
+#https://www.rdocumentation.org/packages/dplyr/versions/1.0.10/topics/rename
+head(ca_childcare)
+```
+
+<!-- Checkpoint: You are only adding columns here, so your new dataset should still have 638 observations! -->
+
+**4. Using a function from the `forcats` package, complete the code below to create a new variable where each county is categorized into one of the [ten (10) Census regions](https://census.ca.gov/regions/) in California. Use the Region description (from the plot), not the Region number.** The code below will help you get started.
+
+```{r}
+#| label: defining-census-regions
+
+superior_counties <- c("Butte","Colusa","El Dorado",
+                       "Glenn","Lassen","Modoc",
+                       "Nevada","Placer","Plumas",
+                       "Sacramento","Shasta","Sierra","Siskiyou",
+                       "Sutter","Tehama","Yolo","Yuba")
+
+north_coast_counties <- c("Del Norte","Humboldt","Lake",
+                          "Mendocino","Napa","Sonoma","Trinity")
+
+san_fran_counties <- c("Alameda","Contra Costa","Marin",
+                       "San Francisco","San Mateo","Santa Clara",
+                       "Solano")
+
+n_san_joaquin_counties <- c("Alpine","Amador","Calaveras","Madera",
+                            "Mariposa","Merced","Mono","San Joaquin",
+                            "Stanislaus","Tuolumne")
+
+central_coast_counties <- c("Monterey","San Benito","San Luis Obispo",
+                            "Santa Barbara","Santa Cruz","Ventura")
+
+s_san_joaquin_counties <- c("Fresno","Inyo","Kern","Kings","Tulare")
+
+inland_counties <- c("Riverside","San Bernardino")
+
+la_county <- "Los Angeles"
+
+orange_county  <- "Orange"
+
+san_diego_imperial_counties <- c("Imperial","San Diego")
+```
+
+```{r}
+#| label: recoding-county-to-census-regions
+# Finish this code using the census regions defined above
+
+ca_childcare <- ca_childcare |> 
+  mutate(county_name = str_remove(county_name, " County")) |>
+  mutate(
+    census_region = fct_collapse(
+      county_name,
+      "Superior California" = superior_counties,
+      "North Coast" = north_coast_counties,
+      "San Francisco Bay Area" = san_fran_counties,
+      "Northern San Joaquin Valley" = n_san_joaquin_counties,
+      "Central Coast" = central_coast_counties,
+      "Southern San Joaquin Valley" = s_san_joaquin_counties,
+      "Inland Empire" = inland_counties,
+      "Los Angeles" = la_county,
+      "Orange County" = orange_county,
+      "San Diego-Imperial" = san_diego_imperial_counties
+    )
+  )
+#research and libraries I used I linked the websites below
+#https://forcats.tidyverse.org/reference/fct_collapse.html
+#https://stringr.tidyverse.org/
+head(ca_childcare)
+```
+
+<!-- Tip: I have provided you with code that eliminates the word "County" from each of the county names in your `ca_childcare` dataset. You should keep this line of code and pipe into the rest of your data manipulations. -->
+
+**5. Let's consider the median household income of each region, and how that income has changed over time. Create a table with ten rows, one for each region, and two columns, one for 2008 and one for 2018 (plus a column for region). The cells should contain the `median()` of the median household income (expressed in 2018 dollars) of the `region` and the `study_year`. Order the rows by 2018 values from highest income to lowest income.**
+
+<!-- Tip: This will require transforming your data! Sketch out what you want the data to look like before you begin to code. You should be starting with your California dataset that contains the regions! -->
+
+```{r}
+#| label: median-income-by-region-over-time
+
+median_income_by_region <- ca_childcare |>
+  group_by(census_region) |>
+  summarise(
+    `2008` = median(mhi_2018[study_year == 2008], na.rm = TRUE),
+    `2018` = median(mhi_2018[study_year == 2018], na.rm = TRUE)
+  ) |>
+  arrange(desc(`2018`))
+
+median_income_by_region
+```
+
+
+**6. Which California `region` had the lowest `median` full-time median weekly price for center-based childcare for infants in 2018? Does this `region` correspond to the `region` with the lowest `median` income in 2018 that you found in Q4?**
+
+```{r}
+#| label: lowest-median-weekly-price-2018
+
+lowest_price_2018 <- ca_childcare |>
+  filter(study_year == 2018) |>
+  group_by(census_region) |>
+  summarise(median_infant_price = median(mc_infant, na.rm = TRUE)) |>
+  slice_min(median_infant_price)
+
+head(lowest_price_2018)
+```
+
+<!-- Checkpoint: The code should give me the EXACT answer. This means having the code output the exact row(s) and variable(s) necessary for providing the solution. -->   ANSWER: Superior California
+
+**7. The following plot shows, for all ten regions, the change over time of the full-time median price for center-based childcare for infants, toddlers, and preschoolers. Recreate the plot. You do not have to replicate the exact colors or theme, but your plot should have the same content, including the order of the facets and legend, reader-friendly labels, axes breaks, and a loess smoother.**
+
+![Plot to recreate](https://atheobold.github.io/groupworthy-data-science/labs/instructions/images/lab-4-recreate-plot.png)
+
+<!-- See instructions for hints on recreating the plot! -->
+
+
+```{r}
+#| label: recreate-plot
+
+library(ggplot2)
+
+dataplot <- ca_childcare |>
+  select(census_region, study_year, mc_infant, mc_toddler, mc_preschool) |>
+  pivot_longer(mc_infant:mc_preschool, names_to = "age", values_to = "price") |>
+  mutate(
+    age = recode(age,
+                 mc_infant = "Infant",
+                 mc_toddler = "Toddler",
+                 mc_preschool = "Preschool"),
+    age = factor(age, levels = c("Infant", "Toddler", "Preschool"))
+  )
+
+ggplot(dataplot, aes(study_year, price, color = census_region)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~ age, nrow = 1) +
+  scale_x_continuous(breaks = seq(2008, 2018, 2)) +
+  labs(
+    title = "Weekly Median Price for Center-Based Childcare ($)",
+    x = "Study Year", y = "Median Weekly Price ($)",
+    color = "California Region"
+  )
+
+```
+
+## Median Household Income vs. Childcare Costs for Infants
+
+<!-- See instructions for resources for refreshing your memory of linear regression! -->
+
+**8. Create a scatterplot showing the relationship between median household income (expressed in 2018 dollars) and the full-time median weekly price charged for center-based childcare for an infant in California. Overlay a linear regression line (lm) to show the trend.**
+
+```{r}
+#| label: scatterplot-median-income-vs-childcare-cost
+ggplot(ca_childcare, aes(x = mhi_2018, y = mc_infant)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Income vs. Infant Center-Based Weekly Price (CA)",
+    x = "Median household income (2018 Dollars)",
+    y = "Median weekly price (Dollars)"
+  )
+
+#https://ggplot2.tidyverse.org/reference/Geom.html
+
+```
+
+**9. Look up the documentation for `lm()` and fit a linear regression model to the relationship shown in your plot above.**
+
+```{r}
+# complete the code provided
+
+reg_mod1 <- lm(mc_infant ~ mhi_2018, data = ca_childcare)
+summary(reg_mod1)
+
+```
+
+**10. Using the output from `summary()`, write out the estimated regression line (recall: $y = mx + b$).**
+ y = 0.002241x + 131.7 in y = mx + b form
+
+**11. Do you have evidence to conclude there is a relationship between the median household income and the median weekly cost of center-based childcare for infants in California? Cite values from your `summary()` output to support your claim!**
+
+Yes, there is strong evidence of a relationship between median household income and the median weekly cost of center-based childcare for infants in California. 
+- The slope, which is mhi_2018, estimate is 0.002241, meaning as income increases, childcare cost tends to increase as well. 
+- The p-value for this has a coefficient of well below 0.05, indicating that this relationship is statistically significant
+
+

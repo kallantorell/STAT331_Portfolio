@@ -1,0 +1,163 @@
+---
+title: "Lab 5: Murder in SQL City"
+subtitle: "`join` + `filter` + `stringr` + `ludridate`"
+author: "Kallan Torell"
+format: html
+editor: source
+embed-resources: true
+execute:
+  code-tools: true
+  code-fold: true
+  echo: true
+  eval: true
+---
+
+For this lab, you will be joining and filtering related datasets to solve a murder mystery!
+
+## Instructions
+
+Northwestern University's Knight Lab wanted to help sharpen users' database skills, so they created a murder mystery. Can you solve this crime in SQL City??
+
+The relational data you will be working with contains tables with different pieces of information pertinent to the crime - people, social media check-ins, driver's licenses, crime scene reports, police interviews, and more!
+
+![Database schema](https://mystery.knightlab.com/schema.png)
+
+Solve the murder mystery, showing **all of your work in this document**. Your document and code must be well organized, easy to follow, and reproducible.
+
++ Use headers and written descriptions to indicate what you are doing.
++ Use `dplyr` verbs and `join` functions rather than just looking through the tables manually.
++ Use good code formatting practices.
++ Comment your code.
++ Cite any external sources you use to solve the mystery.
+
+### Tips 
+
+You may find the `pull()` function handy for displaying each clue as you go along.
+
+
+## Access the Data
+
+This code chunk will read in all of the tables of data for you. Don't modify or remove this!
+
+```{r}
+#| message: false
+#| warning: false
+#| label: read-in-data
+
+library(tidyverse)
+
+# If purrr is not detected, install the package
+if (!"purrr" %in% installed.packages()) install.packages("purrr")
+
+source("https://raw.githubusercontent.com/atheobold/groupworthy-data-science/main/labs/instructions/lab-5-setup.R")
+```
+
+## Solve the Crime
+
+### Crime Scene Report
+
+Detective Wickham reaches out to you...
+
+> A crime has taken place and I need your help! There was a murder in SQL City sometime on January 15, 2018. Could you retrieve the crime scene report from the police department’s database and follow the clues to find the person responsible for the murder?!
+
+```{r}
+#| label: inspecting-crime-scene-report
+
+library(dplyr)
+
+crime_scene_report |>
+  filter(
+    date == "20180115",
+    type == "murder",
+    city == "SQL City"
+  ) |>
+  select(description)
+# https://dplyr.tidyverse.org/
+
+```
+
+When inspecting the crime scene report, we find that there was security footage, with 2 witnesses. The next step will be filtering for those 2 witnesses addresses, using the "last house" and the name Annabel
+
+## Witness Reports
+```{r}
+library(stringr)
+
+witness1 <- person |>
+  filter(address_street_name == "Northwestern Dr") |>
+  arrange(desc(address_number)) |>
+  slice_head(n = 1) |>
+  transmute(id, witness = 1L)
+
+# https://dplyr.tidyverse.org/reference/transmute.html
+# wanted help with the syntax/arguments on column management using transmute
+witness2 <- person |>
+  filter(
+    str_detect(name, "Annabel"),
+    address_street_name == "Franklin Ave"
+  ) |>
+  transmute(id, witness = 2L)
+
+# https://dplyr.tidyverse.org/reference/transmute.html
+# wanted help with the syntax on column management using transmute
+witnesses <- bind_rows(witness1, witness2)
+
+# https://dplyr.tidyverse.org/reference/bind_rows.html
+# I had some issue with the witness data and singling out any of the witnesses so I researched using the tidyverse library out to combine rows across dataframes
+
+witness_interview <- witnesses |>
+  left_join(interview, by = c("id" = "person_id")) |>
+  select(witness, transcript)
+
+witness_interview
+
+```
+
+The witness interviews yielded some valuable information about the suspects identity. Witness1 and witness2 both could identify the man, and tied him to a specific gym. Now we must filter for the information about this mystery gym member. 
+
+## Gym Investigation
+
+```{r}
+members <- get_fit_now_member |>
+  filter(
+    membership_status == "gold",           
+    str_detect(id, "^48Z")                  
+  ) |>
+  select(id, person_id, name)
+# https://qmd4sci.njtierney.com/common-problems.html
+# I was very confused why the document would not render correctly with the "gold" color
+members
+```
+
+```{r}
+checkins <- get_fit_now_check_in |>
+  filter(check_in_date == "20180109") |>
+  select(membership_id)
+#https://dplyr.tidyverse.org/reference/select.html
+#just needed syntax help and filtering help
+gym_checkins <- members |>
+  inner_join(checkins, by = c("id" = "membership_id")) |>
+  select(person_id, name)
+
+gym_checkins
+```
+
+```{r}
+suspects <- gym_checkins |>
+  left_join(person |> select(-name), by = c("person_id" = "id")) |>
+  left_join(drivers_license, by = c("license_id" = "id")) |>
+  transmute(person_id, name, plate_number, gender)
+# https://dplyr.tidyverse.org/reference/transmute.html
+# wanted help with the syntax on column management using transmute
+final_suspect <- suspects |>
+  filter(str_detect(plate_number, "H42W"), gender == "male")
+
+final_suspect
+```
+
+
+**Follow the evidence to the person responsible for the murder, building a report as you go.**
+Hint: Make sure you check for interviews with any suspects!
+
+## And the final suspect is...
+
+*Jeremy Bowers!!!!*

@@ -1,0 +1,124 @@
+---
+title: "Lab 1: Introduction to Quarto"
+author: "Kallan Torell"
+format: html
+editor: source
+embed-resources: true
+execute: 
+  echo: true
+  error: true
+---
+
+# Exploring Quarto Documents
+
+## Specifying Global Execute Options
+
+Execution options specify how the R code in your Quarto document should be
+displayed. This [guide](https://quarto.org/docs/computations/execution-options.html)
+provides descriptions on the options you can specify in a document's execution.
+
+**Question 1** -- Add your name and the date to the YAML. 
+
+**Question 2** -- Add an `execute` line to your YAML that includes the following
+options, (1) your source code is always output on the page, and (2) your
+document will render even if there are errors.
+
+## Running the Provided Code
+
+```{r}
+#| echo: true
+#| label: practicing-running-code
+
+# Load a dataset into the R Environment.
+data(ToothGrowth)
+
+# Look at the summary of the variables in the dataset.
+summary(ToothGrowth)
+```
+
+**Question 3** -- Let's spice this code up a bit. Delete `1 + 1` from the code
+chunk and paste in the code provided in the Lab 1 instructions. 
+
+## Check the Data Documentation
+
+**Question 4** -- In your **console** (*not* in the Quarto document), type
+`?ToothGrowth` (or alternatively `help(ToothGrowth)`. Use the information that
+pops up in the *Help* pane in RStudio to fill in the blanks below. 
+
+*This dataset investigates the effect of _____ on tooth growth in ____.*
+
+*The two supplement delivery methods include OJ (____) and VC (____).*
+
+*`ToothGrowth` is a data frame with ___observations and ____ variables.*
+
+**Question 5** -- *Before* the code chunk, change the "Running the Provided
+Code" section header to a header that better describes the contents of this
+section (e.g., Tooth Growth Dataset).
+
+## Creating a Plot
+
+**Question 6** -- Replace the `plot(pressure)` code with the code provided in the Lab 1 instructions.
+
+```{r}
+install.packages("tidyverse")
+```
+
+```{r}
+#| echo: true
+#| label: creating-a-plot
+
+library(tidyverse)
+
+ggplot(data = ToothGrowth, 
+       mapping = aes(x = supp, y = len)) +
+  geom_boxplot() +
+  labs(x = "Supplement", y = "Length of Teeth (mm)")
+
+ToothGrowth %>% 
+  mutate(dose = as.factor(dose)) %>% 
+  ggplot(mapping = aes(x = dose, y = len)) +
+  geom_boxplot() +
+  labs(x = "Dose of Supplement (mg/day)", y = "Length of Teeth (mm)")
+```
+
+
+```{r}
+#| fig-cap: "Boxplots of tooth length by supplement type and dose"
+#| fig-align: center
+#| layout-ncol: 2
+```
+
+Now, run this code chunk! You should see two side-by-side boxplots, one plot
+comparing tooth length between the two supplement delivery methods and one plot
+comparing tooth length between the three different dosages uses. 
+
+**Question 7** -- Read over the [Quarto documentation on figure options](https://quarto.org/docs/authoring/figures.html#computations)
+and add an option (`#|`) to the above code chunk to make the figures print
+side-by-side (i.e., in one row) in the rendered HTML file. 
+
+**Question 8** -- Specify in the code chunk options that these boxplots 
+should be **center aligned** (also found in the Quarto documentation).
+
+**Question 9** -- Specify a **figure caption** for the boxplots (using a
+code-chunk option). This is a bit tricky! There are two plots, so you will need
+to figure out how to specify a different caption for each plot. 
+```{r}
+t.test(len ~ supp, data = ToothGrowth,
+       var.equal = FALSE, 
+       alternative = "two.sided")
+# unequal variances and two sided assumed for t.test
+
+```
+1. Conclusion based on p-value:
+
+  Since p ≥ 0.05 (0.06063), we fail to reject H0 and do not have enough evidence in the dataset to conclude a difference in OJ and VC. 
+
+2. Interpretation of confidence interval:
+
+  Our 95% confidence interval is (-0.1710156, 7.5710156), meaning that th difference may not be statistically significant since the interval contains 0. 
+
+## Section: Two-Sample t-Test for Supplement Type
+
+In this section, we used a two sample independent t test to compare tooth length between the two supplement delivery methods, which were OJ and VC, in the `ToothGrowth` dataset. The test assumes unequal variances and uses a two sided alternative hypothesis. 
+
+The results of t.test summarize the statistical test, including the p-value and confidence interval, which were used to determine that there is not a statistically significant difference between delivery methods, and further testing must be done to determine if there is any statistically significant difference. 
